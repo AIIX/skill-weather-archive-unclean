@@ -179,8 +179,8 @@ class WeatherSkill(MycroftSkill):
                 report['lon'])
             report['temp_min'] = self.__get_temperature(forecastWeather, 'min')
             report['temp_max'] = self.__get_temperature(forecastWeather, 'max')
-
-            self.__report_weather("current", report) 
+            self.enclosure.ws.emit(Message("data", {'desktop': {'currentIntent':{'currenttemp': report['temp'], 'mintemp': report['temp_min'], 'maxtemp': report['temp_max'], 'loc': report['full_location'], 'sum': report['condition'], 'icon': report['icon']}}}))            
+            self.__report_weather("current", report)
         except HTTPError as e:
             self.__api_error(e)
         except Exception as e:
@@ -220,7 +220,7 @@ class WeatherSkill(MycroftSkill):
                 forecastWeather.get_detailed_status(), True)
 
             report['day'] = self.__to_day(when)  # Tuesday, tomorrow, etc.
-
+            self.enclosure.ws.emit(Message("data", {'desktop': {'currentIntent':{'currenttemp': report['temp'], 'mintemp': report['temp_min'], 'maxtemp': report['temp_max'], 'loc': report['full_location'], 'sum': report['condition'], 'icon': report['icon'], 'day': report['day']}}}))
             self.__report_weather("forecast", report)
         except HTTPError as e:
             self.__api_error(e)
