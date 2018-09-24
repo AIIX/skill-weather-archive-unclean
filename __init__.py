@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import time
+import json
 from datetime import datetime
 import mycroft.audio
 from adapt.intent import IntentBuilder
@@ -28,6 +29,7 @@ from pyowm.webapi25.forecaster import Forecaster
 from pyowm.webapi25.forecastparser import ForecastParser
 from pyowm.webapi25.observationparser import ObservationParser
 from requests import HTTPError
+from mycroft.messagebus.message import Message
 
 from mycroft.util.format import nice_time
 
@@ -132,7 +134,6 @@ class WeatherSkill(MycroftSkill):
 
         # Use Mycroft proxy if no private key provided
         key = self.config.get('api_key')
-
         # TODO: Remove lat,lon parameters from the OWMApi()
         #       methods and implement _at_coords() versions
         #       instead to make the interfaces compatible
@@ -179,7 +180,22 @@ class WeatherSkill(MycroftSkill):
                 report['lon'])
             report['temp_min'] = self.__get_temperature(forecastWeather, 'min')
             report['temp_max'] = self.__get_temperature(forecastWeather, 'max')
-            self.enclosure.bus.emit(Message("data", {'desktop': {'currentIntent':{'currenttemp': report['temp'], 'mintemp': report['temp_min'], 'maxtemp': report['temp_max'], 'loc': report['full_location'], 'sum': report['condition'], 'icon': report['icon']}}}))            
+            weather_code = str(report['icon'])
+            img_code = self.CODES[weather_code]
+            futureWeather = self.owm.daily_forecast(report['full_location'], report['lat'], report['lon'], limit=5)
+            f = futureWeather.get_forecast()
+            forecastDump = {}
+            forecastList = []
+            days=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+            unit = self.__get_temperature_unit()
+            for weather in f.get_weathers():
+                result_temp = weather.get_temperature(unit)
+                result_temp_day = days[datetime.weekday(datetime.fromtimestamp(weather.get_reference_time()))]
+                forecastList.append({"weathercode": self.CODES[weather.get_weather_icon_name()], "max": result_temp['max'], "min": result_temp['min'], "date": result_temp_day})
+            forecastList.pop(0)
+            forecastDump['forecast'] = forecastList
+            LOG.info(forecastDump['forecast'])
+            self.enclosure.bus.emit(Message("metadata", {"type": "mycroft-weather", "current": report["temp"], "min": report["temp_min"], "max": report["temp_max"], "location": report["full_location"], "condition": report["condition"], "icon": report["icon"], "weathercode": img_code, "forecastDump": forecastDump}))
             self.__report_weather("current", report)
         except HTTPError as e:
             self.__api_error(e)
@@ -220,7 +236,7 @@ class WeatherSkill(MycroftSkill):
                 forecastWeather.get_detailed_status(), True)
 
             report['day'] = self.__to_day(when)  # Tuesday, tomorrow, etc.
-            self.enclosure.bus.emit(Message("data", {'desktop': {'currentIntent':{'currenttemp': report['temp'], 'mintemp': report['temp_min'], 'maxtemp': report['temp_max'], 'loc': report['full_location'], 'sum': report['condition'], 'icon': report['icon'], 'day': report['day']}}}))
+            self.enclosure.bus.emit(Message("metadata", {"type": "mycroft-weather/forcast", "current": report["temp"], "min": report["temp_min"], "max": report["temp_max"], "location": report["full_location"], "condition": report["condition"], "icon": report["icon"], 'day': report['day']}))
             self.__report_weather("forecast", report)
         except HTTPError as e:
             self.__api_error(e)
@@ -593,7 +609,7 @@ class WeatherSkill(MycroftSkill):
             #       the timezone of the location being forecasted
             timezone = pytz.timezone(self.location["timezone"]["code"])
             return timezone.localize(when).astimezone(pytz.utc)
-
+    
     def __to_Local(self, when):
         try:
             # First try with modern mycroft.util.time functions
@@ -618,6 +634,6 @@ class WeatherSkill(MycroftSkill):
             except BaseException:
                 return condition
 
-
+    
 def create_skill():
     return WeatherSkill()
