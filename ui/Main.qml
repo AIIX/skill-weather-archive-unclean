@@ -77,13 +77,15 @@ Mycroft.PaginatedDelegate {
 
     //Page 1
     Kirigami.Page {
-        ColumnLayout{
-            Item {
-                Layout.fillWidth: true
-                height: Kirigami.Units.smallSpacing + Kirigami.Units.largeSpacing
+        ColumnLayout {
+            anchors {
+                left: parent.left
+                right: parent.right
             }
+
             Kirigami.Heading {
                 id: locationHeading
+                Layout.fillWidth: true
                 Layout.alignment: Qt.AlignHCenter
                 level: 2
                 wrapMode: Text.WordWrap
@@ -149,20 +151,19 @@ Mycroft.PaginatedDelegate {
     }
 
     //Page 2
-    Kirigami.ScrollablePage{
+    Kirigami.ScrollablePage {
 
         Kirigami.CardsLayout {
             Layout.fillWidth: true
             maximumColumnWidth: Kirigami.Units.gridUnit * 12
-
+onWidthChanged: print("AAAA"+width)
             Repeater {
                 id: forecastRepeater
                 model: forecastDump.forecast
-                delegate:
-                    Column {
+                delegate: Column {
                     spacing: Kirigami.Units.largeSpacing
 
-                    Kirigami.Heading{
+                    Kirigami.Heading {
                         wrapMode: Text.WordWrap
                         elide: Text.ElideRight
                         level: 2
