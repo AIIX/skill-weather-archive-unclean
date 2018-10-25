@@ -145,6 +145,45 @@ class WeatherSkill(MycroftSkill):
         #     self.owm = OWMApi()
         self.owm = OWMApi()
 
+    def initialize(self):
+        try:
+            # Register handlers for messagebus events
+            self.add_event('mycroftai.mycroft-weather.weather_dashboard', self.handle_weather_dashboard)
+        except:
+            pass
+
+    def handle_weather_dashboard(self, message):
+        print("Sending dashboard stuff")
+        try:
+            today = extract_datetime(" ")[0]
+            report = self.__initialize_report(message)
+            currentWeather = self.owm.weather_at_place(
+                report['full_location'], report['lat'],
+                report['lon']).get_weather()
+            condition = self.__translate(currentWeather.get_detailed_status())
+            report['condition'] = condition
+            report['temp'] = self.__get_temperature(currentWeather, 'temp')
+            report['icon'] = currentWeather.get_weather_icon_name()
+            
+            forecastWeather = self.__get_forecast(
+                today.replace(
+                    hour=12),
+                report['full_location'],
+                report['lat'],
+                report['lon'])
+            report['temp_min'] = self.__get_temperature(forecastWeather, 'min')
+            report['temp_max'] = self.__get_temperature(forecastWeather, 'max')
+            
+            weather_code = str(report['icon'])
+            img_code = self.CODES[weather_code]
+
+            self.enclosure.bus.emit(Message("metadata", {"type": "mycroft-weather/dashboard", "current": report["temp"], "min": report["temp_min"], "max": report["temp_max"], "location": report["full_location"], "condition": report["condition"], "icon": report["icon"], "weathercode": img_code}))
+
+        except HTTPError as e:
+            self.__api_error(e)
+        except Exception as e:
+            LOG.error("Error: {0}".format(e))
+
     # Handle: what is the weather like?
     @intent_handler(IntentBuilder("").require(
         "Weather").optionally("Location").build())
