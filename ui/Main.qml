@@ -1,3 +1,4 @@
+
 import QtQuick.Layouts 1.4
 import QtQuick 2.4
 import QtQuick.Controls 2.0
@@ -7,14 +8,14 @@ import Mycroft 1.0 as Mycroft
 
 Mycroft.PaginatedDelegate {
     id: root
-    property alias location: locationHeading.text
     property var current
     property var min
     property var max
     property var condition
     property var weathercode
     property var forecastDump
-    graceTime: 30000
+    graceTime: 300000
+    backgroundDim: 0.8
     backgroundImage: getWeatherImagery(weathercode)[1]
 
     function getWeatherImagery(weathercode){
@@ -29,13 +30,13 @@ Mycroft.PaginatedDelegate {
             return ["icons/cloudy.svg", "https://source.unsplash.com/1920x1080/?+cloudy"]
             break
         case 3:
-            return ["icons/rainy-2.svg", "https://source.unsplash.com/1920x1080/?+rain"]
+            return ["icons/rain.svg", "https://source.unsplash.com/1920x1080/?+rain"]
             break
         case 4:
             return ["icons/rainy-1.svg", "https://source.unsplash.com/1920x1080/?+rains"]
             break
         case 5:
-            return ["icons/thunder.svg", "https://source.unsplash.com/1920x1080/?+storm"]
+            return ["icons/storm.svg", "https://source.unsplash.com/1920x1080/?+storm"]
             break
         case 6:
             return ["icons/snowy-6.svg", "https://source.unsplash.com/1920x1080/?+snow"]
@@ -58,13 +59,13 @@ Mycroft.PaginatedDelegate {
             return "icons/cloudy.svg"
             break
         case 3:
-            return "icons/rainy-2.svg"
+            return "icons/rain.svg"
             break
         case 4:
-            return "icons/rainy-1.svg"
+            return "icons/rain.svg"
             break
         case 5:
-            return "icons/thunder.svg"
+            return "icons/storm.svg"
             break
         case 6:
             return "icons/snowy-6.svg"
@@ -78,127 +79,175 @@ Mycroft.PaginatedDelegate {
     //Page 1
     Kirigami.Page {
         ColumnLayout {
-            anchors {
-                left: parent.left
-                right: parent.right
+            id: dc
+            anchors.centerIn: parent
+            spacing: Kirigami.Units.largeSpacing
+            Image {
+                id: img
+                fillMode: Image.PreserveAspectFit
+                Layout.preferredWidth: Kirigami.Units.gridUnit * 8
+                Layout.preferredHeight: Kirigami.Units.gridUnit * 8
+                source: getWeatherImagery(weathercode)[0]
             }
+            Kirigami.Heading {
+                id: titleCurrent
+                Layout.leftMargin: Kirigami.Units.smallSpacing
+                level: 1
+                wrapMode: Text.WordWrap
+                font.bold: true
+                font.pointSize: Kirigami.Units.gridUnit * 4
+                font.weight: Font.ExtraBold
+                text: current + "°"
+            }
+        }
+    }
+
+    //Page 2,3,4..etc
+    Kirigami.Page {
+        ColumnLayout {
+            id: d1
+            anchors.centerIn: parent
+            anchors.margins: Kirigami.Units.largeSpacing
+            spacing: Kirigami.Units.largeSpacing
 
             Kirigami.Heading {
-                id: locationHeading
+                wrapMode: Text.WordWrap
+               // elide: Text.ElideRight
+                level: 2
+                text: forecastDump.forecast[0].date
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignHCenter
-                level: 2
-                wrapMode: Text.WordWrap
             }
 
-            Kirigami.Heading {
-                id: contentcondition
-                Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-                elide: Text.ElideRight
-                level: 2
-                font.capitalization: Font.SmallCaps
-                font.italic: true
-                height: contentLow.height
-                text: condition
+            Image {
+                fillMode: Image.PreserveAspectFit
+                Layout.preferredWidth: Kirigami.Units.gridUnit * 8
+                Layout.preferredHeight: Kirigami.Units.gridUnit * 8
+                Layout.alignment: Qt.AlignHCenter
+                source: getForecastImagery(forecastDump.forecast[0].weathercode)
             }
 
-            RowLayout {
-                id: row
+            Kirigami.FormLayout {
                 Layout.fillWidth: true
-                spacing: Kirigami.Units.largeSpacing
-                Image {
-                    id: img
-                    fillMode: Image.PreserveAspectFit
-                    Layout.preferredWidth: Kirigami.Units.gridUnit * 5
-                    Layout.preferredHeight: Kirigami.Units.gridUnit * 5
-                    source: getWeatherImagery(weathercode)[0]
+                Kirigami.Heading {
+                    wrapMode: Text.WordWrap
+                    Kirigami.FormData.label: "Low:"
+                    font.bold: true
+                    font.pointSize: Kirigami.Units.gridUnit * 4
+                    font.weight: Font.ExtraBold
+                    elide: Text.ElideRight
+                    level: 2
+                    text: forecastDump.forecast[0].min + "°"
                 }
                 Kirigami.Heading {
-                    id: titleCurrent
-                    level: 1
                     wrapMode: Text.WordWrap
+                    Kirigami.FormData.label: "High:"
+                    elide: Text.ElideRight
+                    level: 2
                     font.bold: true
-                    text: current + "°"
-                }
-
-                Kirigami.FormLayout {
-                    id: form
-                    Layout.fillWidth: true
-                    Layout.minimumWidth: implicitWidth
-
-                    Kirigami.Heading {
-                        id: contentLow
-                        Kirigami.FormData.label: "Low:"
-                        Layout.fillWidth: true
-                        wrapMode: Text.WordWrap
-                        elide: Text.ElideRight
-                        level: 3
-                        text: min + "°"
-                    }
-                    Kirigami.Heading {
-                        id: contenthigh
-                        Kirigami.FormData.label: "High:"
-                        Layout.fillWidth: true
-                        wrapMode: Text.WordWrap
-                        elide: Text.ElideRight
-                        level: 3
-                        text: max + "°"
-                    }
+                    font.pointSize: Kirigami.Units.gridUnit * 4
+                    font.weight: Font.ExtraBold
+                    text: forecastDump.forecast[0].max + "°"
                 }
             }
         }
     }
 
-    //Page 2
-    Kirigami.ScrollablePage {
+    Kirigami.Page {
+        ColumnLayout {
+            id: d2
+            anchors.centerIn: parent
+            spacing: Kirigami.Units.largeSpacing
+            anchors.margins: Kirigami.Units.largeSpacing
 
-        Kirigami.CardsLayout {
-            Layout.fillWidth: true
-            maximumColumnWidth: Kirigami.Units.gridUnit * 12
-onWidthChanged: print("AAAA"+width)
-            Repeater {
-                id: forecastRepeater
-                model: forecastDump.forecast
-                delegate: Column {
-                    spacing: Kirigami.Units.largeSpacing
+            Kirigami.Heading {
+                wrapMode: Text.WordWrap
+                //elide: Text.ElideRight
+                level: 2
+                text: forecastDump.forecast[1].date
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignHCenter
+            }
 
-                    Kirigami.Heading {
-                        wrapMode: Text.WordWrap
-                        elide: Text.ElideRight
-                        level: 2
-                        text: modelData.date
-                        Layout.fillWidth: true
-                    }
-                    Row {
-                        Layout.fillWidth: true
-                        spacing: Kirigami.Units.smallSpacing
+            Image {
+                fillMode: Image.PreserveAspectFit
+                Layout.preferredWidth: Kirigami.Units.gridUnit * 8
+                Layout.preferredHeight: Kirigami.Units.gridUnit * 8
+                source: getForecastImagery(forecastDump.forecast[1].weathercode)
+                Layout.alignment: Qt.AlignHCenter
+            }
 
-                        Image {
-                            fillMode: Image.PreserveAspectFit
-                            Layout.preferredWidth: Kirigami.Units.gridUnit * 6
-                            Layout.preferredHeight: Kirigami.Units.gridUnit * 6
-                            source: getForecastImagery(modelData.weathercode)
-                        }
+            Kirigami.FormLayout {
+                Layout.fillWidth: true
+                Kirigami.Heading {
+                    wrapMode: Text.WordWrap
+                    Kirigami.FormData.label: "Low:"
+                    font.bold: true
+                    font.pointSize: Kirigami.Units.gridUnit * 4
+                    font.weight: Font.ExtraBold
+                    elide: Text.ElideRight
+                    level: 2
+                    text: forecastDump.forecast[1].min + "°"
+                }
+                Kirigami.Heading {
+                    wrapMode: Text.WordWrap
+                    Kirigami.FormData.label: "High:"
+                    elide: Text.ElideRight
+                    level: 2
+                    font.bold: true
+                    font.pointSize: Kirigami.Units.gridUnit * 4
+                    font.weight: Font.ExtraBold
+                    text: forecastDump.forecast[1].max + "°"
+                }
+            }
+        }
+    }
 
-                        Kirigami.FormLayout {
-                            Layout.fillWidth: true
-                            Kirigami.Heading {
-                                wrapMode: Text.WordWrap
-                                Kirigami.FormData.label: "Low:"
-                                elide: Text.ElideRight
-                                level: 3
-                                text: modelData.min + "°"
-                            }
-                            Kirigami.Heading {
-                                wrapMode: Text.WordWrap
-                                Kirigami.FormData.label: "High:"
-                                elide: Text.ElideRight
-                                level: 3
-                                text: modelData.max + "°"
-                            }
-                        }
-                    }
+    Kirigami.Page {
+        ColumnLayout {
+            id: d3
+            anchors.centerIn: parent
+            anchors.margins: Kirigami.Units.largeSpacing
+            spacing: Kirigami.Units.largeSpacing
+
+            Kirigami.Heading {
+                wrapMode: Text.WordWrap
+                //elide: Text.ElideRight
+                level: 2
+                text: forecastDump.forecast[2].date
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignHCenter
+            }
+
+            Image {
+                fillMode: Image.PreserveAspectFit
+                Layout.preferredWidth: Kirigami.Units.gridUnit * 8
+                Layout.preferredHeight: Kirigami.Units.gridUnit * 8
+                source: getForecastImagery(forecastDump.forecast[2].weathercode)
+                Layout.alignment: Qt.AlignHCenter
+            }
+
+            Kirigami.FormLayout {
+                Layout.fillWidth: true
+                Kirigami.Heading {
+                    wrapMode: Text.WordWrap
+                    Kirigami.FormData.label: "Low:"
+                    font.bold: true
+                    font.pointSize: Kirigami.Units.gridUnit * 4
+                    font.weight: Font.ExtraBold
+                    elide: Text.ElideRight
+                    level: 2
+                    text: forecastDump.forecast[2].min + "°"
+                }
+                Kirigami.Heading {
+                    wrapMode: Text.WordWrap
+                    Kirigami.FormData.label: "High:"
+                    elide: Text.ElideRight
+                    level: 2
+                    font.bold: true
+                    font.pointSize: Kirigami.Units.gridUnit * 4
+                    font.weight: Font.ExtraBold
+                    text: forecastDump.forecast[2].max + "°"
                 }
             }
         }
