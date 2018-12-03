@@ -7,13 +7,13 @@ import Mycroft 1.0 as Mycroft
 
 Item {
     id: root
-    property alias location: locationHeading.text
-    property var current
-    property var min
-    property var max
-    property var condition
-    property var weathercode
-    property var forecastDump
+    property var location: sessionData.location
+    property var current: sessionData.current
+    property var min: sessionData.min
+    property var max: sessionData.max
+    property var condition: sessionData.condition
+    property var weathercode: sessionData.weathercode
+    property var forecastDump: sessionData.forecastDump
 
     function getWeatherImagery(weathercode){
         switch(weathercode) {
@@ -90,6 +90,7 @@ Item {
                 Layout.alignment: Qt.AlignHCenter
                 level: 1
                 wrapMode: Text.WordWrap
+                text: location
             }
 
             Kirigami.Heading {

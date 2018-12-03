@@ -177,8 +177,16 @@ class WeatherSkill(MycroftSkill):
             weather_code = str(report['icon'])
             img_code = self.CODES[weather_code]
 
-            self.enclosure.bus.emit(Message("metadata", {"type": "mycroft-weather/dashboard", "current": report["temp"], "min": report["temp_min"], "max": report["temp_max"], "location": report["full_location"], "condition": report["condition"], "icon": report["icon"], "weathercode": img_code}))
-
+            #self.enclosure.bus.emit(Message("metadata", {"type": "mycroft-weather/dashboard", "current": report["temp"], "min": report["temp_min"], "max": report["temp_max"], "location": report["full_location"], "condition": report["condition"], "icon": report["icon"], "weathercode": img_code}))
+            self.gui["current"] = report["temp"]
+            self.gui["min"] = report["temp_min"]
+            self.gui["max"] = report["temp_max"]
+            self.gui["location"] = report["full_location"]
+            self.gui["condition"] = report["condition"]
+            self.gui["icon"] = report["icon"]
+            self.gui["weathercode"] = img_code
+            self.gui.show_page("Dashboard.qml")
+            
         except HTTPError as e:
             self.__api_error(e)
         except Exception as e:
@@ -234,7 +242,16 @@ class WeatherSkill(MycroftSkill):
             forecastList.pop(0)
             forecastDump['forecast'] = forecastList
             LOG.info(forecastDump['forecast'])
-            self.enclosure.bus.emit(Message("metadata", {"type": "mycroft-weather", "current": report["temp"], "min": report["temp_min"], "max": report["temp_max"], "location": report["full_location"], "condition": report["condition"], "icon": report["icon"], "weathercode": img_code, "forecastDump": forecastDump}))
+            #self.enclosure.bus.emit(Message("metadata", {"type": "mycroft-weather", "current": report["temp"], "min": report["temp_min"], "max": report["temp_max"], "location": report["full_location"], "condition": report["condition"], "icon": report["icon"], "weathercode": img_code, "forecastDump": forecastDump}))
+            self.gui["current"] = report["temp"]
+            self.gui["min"] = report["temp_min"]
+            self.gui["max"] = report["temp_max"]
+            self.gui["location"] = report["full_location"]
+            self.gui["condition"] = report["condition"]
+            self.gui["icon"] = report["icon"]
+            self.gui["weathercode"] = img_code
+            self.gui["forecastDump"] = forecastDump
+            self.gui.show_page("CurrentWeather.qml")
             self.__report_weather("current", report)
         except HTTPError as e:
             self.__api_error(e)
