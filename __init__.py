@@ -13,14 +13,18 @@
 # limitations under the License.
 
 import time
-import json
 from datetime import datetime
+from copy import copy
+import json
+
 import mycroft.audio
 from adapt.intent import IntentBuilder
 from multi_key_dict import multi_key_dict
 from mycroft.dialog import DialogLoader
 from mycroft.api import Api
 from mycroft.skills.core import MycroftSkill, intent_handler
+from mycroft.messagebus.message import Message
+from mycroft.util.format import nice_time
 from mycroft.util.log import LOG
 from mycroft.util.parse import extract_datetime
 from mycroft.util.format import nice_number
@@ -29,14 +33,13 @@ from pyowm.webapi25.forecaster import Forecaster
 from pyowm.webapi25.forecastparser import ForecastParser
 from pyowm.webapi25.observationparser import ObservationParser
 from requests import HTTPError
-from mycroft.messagebus.message import Message
-
-from mycroft.util.format import nice_time
 
 try:
     from mycroft.util.time import to_utc, to_local
 except Exception:
     import pytz
+
+MINUTES = 60 # Minutes to seconds multiplier
 
 # This skill uses the Open Weather Map API (https://openweathermap.org) and
 # the PyOWM wrapper for it.  For more info, see:
@@ -57,13 +60,31 @@ class OWMApi(Api):
 
     def __init__(self):
         super(OWMApi, self).__init__("owm")
-        self.lang = "en"
+        self.owmlang = "en"
+        self.encoding = "utf8"
         self.observation = ObservationParser()
         self.forecast = ForecastParser()
+        self.query_cache = {}
 
     def build_query(self, params):
-        params.get("query").update({"lang": self.lang})
+        params.get("query").update({"lang": self.owmlang})
         return params.get("query")
+
+    def request(self, data):
+        """ Caching the responses """
+        req_hash = hash(json.dumps(data, sort_keys=True))
+        cache = self.query_cache.get(req_hash, (0, None))
+
+        # Use cached response if recent and cached value exists
+        now = time.monotonic()
+        if now > (cache[0] + 15 * MINUTES) or cache[1] is None:
+            resp = super().request(data)
+            self.query_cache[req_hash] = (now, resp)
+        else:
+            LOG.debug('Using cached OWM Response from {}'.format(cache[0]))
+            resp = cache[1]
+
+        return resp
 
     def get_data(self, response):
         return response.text
@@ -114,6 +135,17 @@ class OWMApi(Api):
         else:
             return None
 
+    def set_OWM_language(self, lang):
+        self.owmlang = lang
+
+        # Certain OWM condition information is encoded using non-utf8
+        # encodings. If another language needs similar solution add them to the
+        # encodings dictionary
+        encodings = {
+            'se': 'latin1'
+        }
+        self.encoding = encodings.get(lang, 'utf8')
+
 
 class WeatherSkill(MycroftSkill):
     def __init__(self):
@@ -144,45 +176,76 @@ class WeatherSkill(MycroftSkill):
         # else:
         #     self.owm = OWMApi()
         self.owm = OWMApi()
+        if self.owm:
+            self.owm.set_OWM_language(lang=self.__get_OWM_language(self.lang))
 
     def initialize(self):
         try:
-            # Register handlers for messagebus events
-            self.add_event('mycroftai.mycroft-weather.weather_dashboard', self.handle_weather_dashboard)
-        except:
-            pass
-
-    def handle_weather_dashboard(self, message):
-        print("Sending dashboard stuff")
-        try:
-            today = extract_datetime(" ")[0]
-            report = self.__initialize_report(message)
-            currentWeather = self.owm.weather_at_place(
-                report['full_location'], report['lat'],
-                report['lon']).get_weather()
-            condition = self.__translate(currentWeather.get_detailed_status())
-            report['condition'] = condition
-            report['temp'] = self.__get_temperature(currentWeather, 'temp')
-            report['icon'] = currentWeather.get_weather_icon_name()
-            
-            forecastWeather = self.__get_forecast(
-                today.replace(
-                    hour=12),
-                report['full_location'],
-                report['lat'],
-                report['lon'])
-            report['temp_min'] = self.__get_temperature(forecastWeather, 'min')
-            report['temp_max'] = self.__get_temperature(forecastWeather, 'max')
-            
-            weather_code = str(report['icon'])
-            img_code = self.CODES[weather_code]
-
-            self.enclosure.bus.emit(Message("metadata", {"type": "mycroft-weather/dashboard", "current": report["temp"], "min": report["temp_min"], "max": report["temp_max"], "location": report["full_location"], "condition": report["condition"], "icon": report["icon"], "weathercode": img_code}))
-
-        except HTTPError as e:
-            self.__api_error(e)
+            self.mark2_forecast(self.__initialize_report(None))
         except Exception as e:
-            LOG.error("Error: {0}".format(e))
+            LOG.warning('Could not prepare forecasts. ({})'.format(repr(e)))
+
+        if 'gui' in dir(self):
+            # Register for handling idle/resting screen
+            msg_type = '{}.{}'.format(self.skill_id, 'idle')
+            self.add_event(msg_type, self.handle_idle)
+            self.add_event('mycroft.mark2.collect_idle',
+                           self.handle_collect_request)
+
+    def handle_collect_request(self, message):
+        self.log.info('Registering idle screen')
+        self.bus.emit(Message('mycroft.mark2.register_idle',
+                              data={'name': 'Weather',
+                                    'id': self.skill_id}))
+        self.log.info('Done')
+
+    def handle_idle(self, message):
+        self.gui.show_page('idle.qml')
+
+    def get_coming_days_forecast(self, forecast, unit, days=None):
+        """
+            Get weather forcast for the coming days and returns them as a list
+
+            Parameters:
+                forecast: OWM weather
+                unit: Temperature unit
+                dt: Reference time
+                days: number of days to get forecast for, defaults to 4
+
+            Returns: List of dicts containg weather info
+        """
+        days = days or 4
+        weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        forecast_list = []
+        # Get tomorrow and 4 days forward
+        for weather in list(forecast.get_weathers())[1:5]:
+            result_temp = weather.get_temperature(unit)
+            day_num = datetime.weekday(
+                datetime.fromtimestamp(weather.get_reference_time()))
+            result_temp_day = weekdays[day_num]
+            forecast_list.append({
+                "weathercode": self.CODES[weather.get_weather_icon_name()],
+                 "max": round(result_temp['max']),
+                 "min": round(result_temp['min']),
+                 "date": result_temp_day
+            })
+        return forecast_list
+
+    def mark2_forecast(self, report):
+        """ Builds forecast for the upcoming days for the Mark-2 display."""
+        future_weather = self.owm.daily_forecast(report['full_location'],
+                                                 report['lat'],
+                                                 report['lon'], limit=5)
+        f = future_weather.get_forecast()
+        forecast_list = self.get_coming_days_forecast(f,
+            self.__get_temperature_unit())
+
+        if "gui" in dir(self):
+            forecast = {}
+            forecast['first'] = forecast_list[0:2]
+            forecast['second'] = forecast_list[2:4]
+            self.gui['forecast'] = forecast
+
 
     # Handle: what is the weather like?
     @intent_handler(IntentBuilder("").require(
@@ -198,12 +261,18 @@ class WeatherSkill(MycroftSkill):
                 return self.handle_forecast(message)
 
             report = self.__initialize_report(message)
-
             # Get current conditions
             currentWeather = self.owm.weather_at_place(
                 report['full_location'], report['lat'],
                 report['lon']).get_weather()
-            condition = self.__translate(currentWeather.get_detailed_status())
+
+            # Change encoding of the localized report to utf8 if needed
+            condition = currentWeather.get_detailed_status()
+            if self.owm.encoding != 'utf8':
+                condition = self.__translate(
+                    condition.encode(self.owm.encoding).decode('utf8')
+                )
+
             report['condition'] = condition
             report['temp'] = self.__get_temperature(currentWeather, 'temp')
             report['icon'] = currentWeather.get_weather_icon_name()
@@ -219,27 +288,17 @@ class WeatherSkill(MycroftSkill):
                 report['lon'])
             report['temp_min'] = self.__get_temperature(forecastWeather, 'min')
             report['temp_max'] = self.__get_temperature(forecastWeather, 'max')
-            weather_code = str(report['icon'])
-            img_code = self.CODES[weather_code]
-            futureWeather = self.owm.daily_forecast(report['full_location'], report['lat'], report['lon'], limit=5)
-            f = futureWeather.get_forecast()
-            forecastDump = {}
-            forecastList = []
-            days=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
-            unit = self.__get_temperature_unit()
-            for weather in f.get_weathers():
-                result_temp = weather.get_temperature(unit)
-                result_temp_day = days[datetime.weekday(datetime.fromtimestamp(weather.get_reference_time()))]
-                forecastList.append({"weathercode": self.CODES[weather.get_weather_icon_name()], "max": result_temp['max'], "min": result_temp['min'], "date": result_temp_day})
-            forecastList.pop(0)
-            forecastDump['forecast'] = forecastList
-            LOG.info(forecastDump['forecast'])
-            self.enclosure.bus.emit(Message("metadata", {"type": "mycroft-weather", "current": report["temp"], "min": report["temp_min"], "max": report["temp_max"], "location": report["full_location"], "condition": report["condition"], "icon": report["icon"], "weathercode": img_code, "forecastDump": forecastDump}))
+            report['humidity'] = forecastWeather.get_humidity()
+
+            wind = self.get_wind_speed(forecastWeather)
+            report['wind'] = "{} {}".format(wind[0], wind[1] or "")
+
             self.__report_weather("current", report)
+            self.mark2_forecast(report)
         except HTTPError as e:
             self.__api_error(e)
         except Exception as e:
-            LOG.error("Error: {0}".format(e))
+            LOG.exception("Error: {0}".format(e))
 
     # Handle: What is the weather forecast?
     @intent_handler(IntentBuilder("").require(
@@ -264,6 +323,8 @@ class WeatherSkill(MycroftSkill):
             report['temp_min'] = self.__get_temperature(forecastWeather, 'min')
             report['temp_max'] = self.__get_temperature(forecastWeather, 'max')
             report['icon'] = forecastWeather.get_weather_icon_name()
+            report['humidity'] = forecastWeather.get_humidity()
+#            report['wind'] = self.get_wind(weather.get_wind())
 
             # TODO: Run off of status IDs instead of the status text?
             # This converts a status like "sky is clear" to a different
@@ -275,12 +336,12 @@ class WeatherSkill(MycroftSkill):
                 forecastWeather.get_detailed_status(), True)
 
             report['day'] = self.__to_day(when)  # Tuesday, tomorrow, etc.
-            self.enclosure.bus.emit(Message("metadata", {"type": "mycroft-weather/forcast", "current": report["temp"], "min": report["temp_min"], "max": report["temp_max"], "location": report["full_location"], "condition": report["condition"], "icon": report["icon"], 'day': report['day']}))
+
             self.__report_weather("forecast", report)
         except HTTPError as e:
             self.__api_error(e)
         except Exception as e:
-            LOG.error("Error: {0}".format(e))
+            LOG.exception("Error: {0}".format(e))
 
     # Handle: When will it rain again? | Will it rain on Tuesday?
     @intent_handler(IntentBuilder("").require(
@@ -412,6 +473,21 @@ class WeatherSkill(MycroftSkill):
             self.speak_dialog("do not know")
             return
 
+        speed, dir, unit = self.get_wind_speed(weather)
+        if dir:
+            dir = self.__translate(dir)
+            value = self.__translate("wind.speed.dir",
+                                     data={"dir": dir,
+                                           "speed": nice_number(speed),
+                                           "unit": unit})
+        else:
+            value = self.__translate("wind.speed",
+                                     data={"speed": nice_number(speed),
+                                           "unit": unit})
+
+        self.__report_condition(self.__translate("winds"), value, when)
+
+    def get_wind_speed(self, weather):
         wind = weather.get_wind()
 
         speed = wind["speed"]
@@ -444,17 +520,10 @@ class WeatherSkill(MycroftSkill):
                 dir = "NW"
             else:
                 dir = "N"
-            dir = self.__translate(dir)
-            value = self.__translate("wind.speed.dir",
-                                     data={"dir": dir,
-                                           "speed": nice_number(speed),
-                                           "unit": unit})
         else:
-            value = self.__translate("wind.speed",
-                                     data={"speed": nice_number(speed),
-                                           "unit": unit})
+            dir = None
 
-        self.__report_condition(self.__translate("winds"), value, when)
+        return speed, dir, unit
 
     # Handle: When is the sunrise?
     @intent_handler(IntentBuilder("").require(
@@ -483,7 +552,7 @@ class WeatherSkill(MycroftSkill):
 
         dtSunriseUTC = datetime.fromtimestamp(weather.get_sunrise_time())
         dtLocal = self.__to_Local(dtSunriseUTC)
-        self.speak(nice_time(dtLocal, use_ampm=True))
+        self.speak(self.__nice_time(dtLocal, lang=self.lang, use_ampm=True))
 
     # Handle: When is the sunset?
     @intent_handler(IntentBuilder("").require(
@@ -512,13 +581,13 @@ class WeatherSkill(MycroftSkill):
 
         dtSunriseUTC = datetime.fromtimestamp(weather.get_sunset_time())
         dtLocal = self.__to_Local(dtSunriseUTC)
-        self.speak(nice_time(dtLocal, use_ampm=True))
+        self.speak(self.__nice_time(dtLocal, lang=self.lang, use_ampm=True))
 
     def __get_location(self, message):
         # Attempt to extract a location from the spoken phrase.  If none
         # is found return the default location instead.
         try:
-            location = message.data.get("Location", None)
+            location = message.data.get("Location", None) if message else None
             if location:
                 return None, None, location, location
 
@@ -544,7 +613,7 @@ class WeatherSkill(MycroftSkill):
             'lon': lon,
             'location': pretty_location,
             'full_location': location,
-            'scale': self.__get_temperature_unit()
+            'scale': self.translate(self.__get_temperature_unit())
         }
 
     def __report_weather(self, timeframe, report):
@@ -555,6 +624,20 @@ class WeatherSkill(MycroftSkill):
         img_code = self.CODES[weather_code]
 
         # Display info on a screen
+        # Mark-2
+        if 'gui' in dir(self):
+            self.gui["current"] = report["temp"]
+            self.gui["min"] = report["temp_min"]
+            self.gui["max"] = report["temp_max"]
+            self.gui["location"] = report["full_location"].replace(', ', '\n')
+            self.gui["condition"] = report["condition"]
+            self.gui["icon"] = report["icon"]
+            self.gui["weathercode"] = img_code
+            self.gui["humidity"] = report.get("humidity", "--")
+            self.gui["wind"] = report.get("wind", "--")
+            self.gui.show_pages(["weather.qml", "highlow.qml",
+                                 "forecast.qml", "forecast2.qml"])
+        # Mark-1
         self.enclosure.deactivate_mouth_events()
         self.enclosure.weather_display(img_code, report['temp'])
 
@@ -565,6 +648,13 @@ class WeatherSkill(MycroftSkill):
 
         # Just show the icons while still speaking
         mycroft.audio.wait_while_speaking()
+
+        # Speak the high and low temperatures
+        self.speak_dialog("min.max", report)
+        if "gui" in dir(self):
+            self.gui.show_page("highlow.qml")
+        mycroft.audio.wait_while_speaking()
+
         self.enclosure.activate_mouth_events()
         self.enclosure.mouth_reset()
 
@@ -631,9 +721,24 @@ class WeatherSkill(MycroftSkill):
     def __to_day(self, when):
         # TODO: This will be a compatibility wrapper for
         #       mycroft.util.format.relative_day(when)
-        if self.lang =='sv-se':
+        if self.lang.lower().startswith("sv"):
             days = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag',
                     'Lördag', 'Söndag']
+        elif self.lang.lower().startswith("de"):
+            days = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag',
+                    'Samstag', 'Sonntag']
+        elif self.lang.lower().startswith("es"):
+            days = ['Lunes', 'Martes', u'Miércoles',
+                    'Jueves', 'Viernes', u'Sábado', 'Domingo']
+        elif self.lang.lower().startswith("fr"):
+            days = ["Lundi", "Mardi", "Mercredi",
+                    "Jeudi", "Vendredi", "Samedi", "Dimanche"]
+        elif self.lang.lower().startswith("it"):
+            days = ['Lunedi', 'Martedi', 'Mercoledi',
+                    'Giovedi', 'Venerdi', 'Sabato', 'Domenica']
+        elif self.lang.lower().startswith("pt"):
+            days = ['Segunda', 'Terca', 'Quarta',
+                    'Quinta', 'Sexta', 'Sabado', 'Domingo']
         else:
             days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday',
                     'Saturday', 'Sunday']
@@ -648,7 +753,7 @@ class WeatherSkill(MycroftSkill):
             #       the timezone of the location being forecasted
             timezone = pytz.timezone(self.location["timezone"]["code"])
             return timezone.localize(when).astimezone(pytz.utc)
-    
+
     def __to_Local(self, when):
         try:
             # First try with modern mycroft.util.time functions
@@ -661,18 +766,63 @@ class WeatherSkill(MycroftSkill):
             return when.astimezone(timezone)
 
     def __translate(self, condition, future=False, data=None):
+        # behaviour of method dialog_renderer.render(...) has changed - instead
+        # of exception when given template is not found now simply the
+        # templatename is returned!?!
         if future:
-            # Convert things like "sky is clear" to a future tense
-            try:
+            if (condition + ".future") in self.dialog_renderer.templates:
                 return self.dialog_renderer.render(condition + ".future", data)
-            except BaseException:
-                return condition
-        else:
-            try:
-                return self.dialog_renderer.render(condition, data)
-            except BaseException:
-                return condition
 
-    
+        if condition in self.dialog_renderer.templates:
+            return self.dialog_renderer.render(condition, data)
+        else:
+            return condition
+
+    """
+    OWM supports 31 languages, see https://openweathermap.org/current#multi
+
+    If Mycroft's language setting is supported by OWM,
+    then use it - or use 'en' otherwise
+    """
+    def __get_OWM_language(self, lang):
+        owmlang = 'en'
+
+        # some special cases
+        if lang == 'zh-zn' or lang == 'zh_zn':
+            return 'zh_zn'
+        elif lang == 'zh-tw' or lang == 'zh_tw':
+            return 'zh_tw'
+
+        # special cases cont'd
+        lang = lang.lower().split("-")
+        lookup = {
+            'sv': 'se',
+            'cs': 'cz',
+            'ko': 'kr',
+            'lv': 'la',
+            'uk': 'ua'
+        }
+        if lang[0] in lookup:
+            return lookup[lang[0]]
+
+        owmsupported = ['ar','bg','ca','cz','de','el','en','fa','fi','fr','gl',
+                    'hr','hu','it','ja','kr','la','lt','mk','nl','pl','pt',
+                    'ro','ru','se','sk','sl','es','tr','ua','vi']
+
+        if lang[0] in owmsupported:
+            owmlang = lang[0]
+        if (len(lang)==2):
+            if lang[1] in owmsupported:
+                owmlang = lang[1]
+        return owmlang
+
+    def __nice_time(self, dt, lang="en-us", speech=True, use_24hour=False,
+                    use_ampm=False):
+        # compatibility wrapper for nice_time
+        nt_supported_languages = ['en','it','fr','de']
+        if not (lang[0:2] in nt_supported_languages):
+            lang = "en-us"
+        return nice_time(dt, lang, speech, use_24hour, use_ampm)
+
 def create_skill():
     return WeatherSkill()
