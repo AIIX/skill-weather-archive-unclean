@@ -7,7 +7,8 @@ import Mycroft 1.0 as Mycroft
 import org.kde.lottie 1.0
 
 Mycroft.Delegate {
-    skillBackgroundSource: Qt.resolvedUrl("img/bg.png")
+    id: root
+
     function getWeatherImagery(weathercode){
         switch(weathercode) {
         case 0:
@@ -47,7 +48,7 @@ Mycroft.Delegate {
             Layout.preferredWidth: Kirigami.Units.gridUnit * 14
             Layout.preferredHeight: Kirigami.Units.gridUnit * 14
             source: Qt.resolvedUrl(getWeatherImagery(sessionData.weathercode))
-            //source: Qt.resolvedUrl("animations/sunny.json")
+
             loops: Animation.Infinite
             fillMode: Image.PreserveAspectFit
             running: true
@@ -63,15 +64,11 @@ Mycroft.Delegate {
         Item {
             height: Kirigami.Units.largeSpacing * 10
         }
-        Label {
+        Mycroft.DynamicLabel {
             id: temperature
-            Layout.alignment: Qt.AlignHCenter
-            font.capitalization: Font.AllUppercase
-            font.family: "Noto Sans Display"
             font.weight: Font.Bold
-            font.pixelSize: 240
-            color: "white"
-            lineHeight: 0.6
+            Layout.fillWidth: true
+            Layout.preferredHeight: root.height * 0.4
             text: sessionData.current + "°"
         }
     }

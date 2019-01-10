@@ -7,7 +7,7 @@ import Mycroft 1.0 as Mycroft
 import org.kde.lottie 1.0
 
 Mycroft.Delegate {
-    skillBackgroundSource: Qt.resolvedUrl("img/bg.png")
+    id: root
 
     ColumnLayout {
         id: grid
@@ -15,29 +15,19 @@ Mycroft.Delegate {
         anchors.centerIn: parent
         spacing: 0
 
-        Label {
+        Mycroft.DynamicLabel {
             id: maxTemp
-            Layout.alignment: Qt.AlignHCenter
-            font.capitalization: Font.AllUppercase
-            font.family: "Noto Sans Display"
             font.weight: Font.Bold
-            font.pixelSize: 240
-            color: "white"
-            lineHeight: 0.6
+            proportionalSize: root.width * 0.8
             text: sessionData.max + "°"
         }
         Item {
             height: Kirigami.Units.largeSpacing * 10
         }
-        Label {
+        Mycroft.DynamicLabel {
             id: minTemp
-            Layout.alignment: Qt.AlignHCenter
-            font.capitalization: Font.AllUppercase
-            font.family: "Noto Sans Display"
-            font.pixelSize: 240
             font.styleName: "Thin"
-            color: "white"
-            lineHeight: 0.6
+            proportionalSize: root.width * 0.8
             text: sessionData.min + "°"
         }
     }
