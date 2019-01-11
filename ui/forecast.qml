@@ -28,16 +28,14 @@ WeatherDelegate {
                     fillMode: Image.PreserveAspectFit
                     running: true
                 }
-                Mycroft.DynamicLabel {
+                Mycroft.AutoFitLabel {
                     font.weight: Font.Bold
-                    proportionalSize: root.width * 0.2
                     Layout.preferredWidth: parent.width * 0.6
                     Layout.preferredHeight: parent.height * 0.2
                 }
 
-                Mycroft.DynamicLabel {
+                Mycroft.AutoFitLabel {
                     font.weight: Font.Bold
-                    proportionalSize: root.width * 0.4
                     text: modelData.max + "°"
                 }
 

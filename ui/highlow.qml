@@ -15,19 +15,17 @@ Mycroft.Delegate {
         anchors.centerIn: parent
         spacing: 0
 
-        Mycroft.DynamicLabel {
+        Mycroft.AutoFitLabel {
             id: maxTemp
             font.weight: Font.Bold
-            proportionalSize: root.width * 0.8
             text: sessionData.max + "°"
         }
         Item {
             height: Kirigami.Units.largeSpacing * 10
         }
-        Mycroft.DynamicLabel {
+        Mycroft.AutoFitLabel {
             id: minTemp
             font.styleName: "Thin"
-            proportionalSize: root.width * 0.8
             text: sessionData.min + "°"
         }
     }
