@@ -9,10 +9,12 @@ import org.kde.lottie 1.0
 WeatherDelegate {
     id: root
 
+    spacing: proportionalGridUnit * 5
+
     LottieAnimation {
         id: weatherAnimation
         Layout.alignment: Qt.AlignHCenter
-        Layout.preferredWidth: Math.min(root.contentWidth, proportionalGridUnit * 5)
+        Layout.preferredWidth: Math.min(root.contentWidth, proportionalGridUnit * 50)
         Layout.preferredHeight: Layout.preferredWidth
 
         source: Qt.resolvedUrl(getWeatherImagery(sessionData.weathercode))
@@ -34,7 +36,8 @@ WeatherDelegate {
         id: temperature
         font.weight: Font.Bold
         Layout.fillWidth: true
-        Layout.preferredHeight: proportionalGridUnit * 4
+        Layout.preferredHeight: proportionalGridUnit * 40
+        rightPadding: -font.pixelSize * 0.1
         text: sessionData.current + "°"
     }
 }

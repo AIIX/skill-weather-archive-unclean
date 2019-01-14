@@ -11,14 +11,18 @@ WeatherDelegate {
 
     property alias model: forecastRepeater.model
 
+    spacing: proportionalGridUnit * 10
     Repeater {
         id: forecastRepeater
         model: sessionData.forecast.first
         delegate: GridLayout {
             columns: 2
+            rowSpacing: proportionalGridUnit * 5
+            columnSpacing: proportionalGridUnit * 5
             Layout.fillWidth: true
             LottieAnimation {
-                Layout.preferredHeight: proportionalGridUnit * 2
+                Layout.alignment: Qt.AlignCenter
+                Layout.preferredHeight: proportionalGridUnit * 20
                 Layout.preferredWidth: Layout.preferredHeight
 
                 source: Qt.resolvedUrl(getWeatherImagery(modelData.weathercode))
@@ -28,22 +32,25 @@ WeatherDelegate {
             }
             Mycroft.AutoFitLabel {
                 font.weight: Font.Bold
-                Layout.preferredWidth: root.width/2
-                Layout.preferredHeight: proportionalGridUnit
+                horizontalAlignment: Text.AlignLeft
+                Layout.fillWidth: true
+                Layout.preferredHeight: proportionalGridUnit * 15
                 text: modelData.date
             }
 
             Mycroft.AutoFitLabel {
                 font.weight: Font.Bold
                 Layout.fillWidth: true
-                Layout.preferredHeight: proportionalGridUnit * 2
+                Layout.preferredHeight: proportionalGridUnit * 20
+                rightPadding: -font.pixelSize * 0.1
                 text: modelData.max + "°"
             }
 
             Mycroft.AutoFitLabel {
                 font.styleName: "Thin"
                 Layout.fillWidth: true
-                Layout.preferredHeight: proportionalGridUnit * 2
+                Layout.preferredHeight: proportionalGridUnit * 20
+                rightPadding: -font.pixelSize * 0.1
                 text: modelData.max + "°"
             }
         }
