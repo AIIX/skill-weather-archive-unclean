@@ -6,85 +6,64 @@ import org.kde.kirigami 2.4 as Kirigami
 import Mycroft 1.0 as Mycroft
 import org.kde.lottie 1.0
 
-Mycroft.Delegate {
-    skillBackgroundSource: Qt.resolvedUrl("img/bg.png")
-    function getWeatherImagery(weathercode){
-        switch(weathercode) {
-        case 0:
-            return "animations/sunny.json";
-            break
-        case 1:
-            return "animations/partlycloudy.json";
-            break
-        case 2:
-            return "animations/cloudy.json";
-            break
-        case 3:
-            return "animations/rain.json";
-            break
-        case 4:
-            return "animations/rain.json";
-            break
-        case 5:
-            return "animations/storm.json";
-            break
-        case 6:
-            return "animations/snow.json";
-            break
-        case 7:
-            return "animations/fog.json";
-            break
-        }
-    }
+WeatherDelegate {
+    id: forcast2Root
 
     ColumnLayout {
-        id: grid
         Layout.fillWidth: true
-        anchors.centerIn: parent
-        spacing: Kirigami.Units.largeSpacing * 5
+        Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
+        spacing: Kirigami.Units.largeSpacing * 2
+
+        Item {
+            height: Kirigami.Units.largeSpacing * 2
+        }
+        
         Repeater {
             id: forecastRepeater
             model: sessionData.forecast.second
-            delegate: GridLayout {
-                columns: 2
+            delegate: ColumnLayout {
                 Layout.fillWidth: true
-                LottieAnimation {
-                    Layout.preferredHeight: Kirigami.Units.gridUnit * 7
-                    Layout.maximumWidth: Kirigami.Units.gridUnit * 15
-                    source: Qt.resolvedUrl(getWeatherImagery(modelData.weathercode))
-                    loops: Animation.Infinite
-                    fillMode: Image.PreserveAspectFit
-                    running: true
+                Layout.alignment: Qt.AlignHCenter
+                spacing: Kirigami.Units.smallSpacing * 0.2
+                RowLayout {
+                    id: forecastTopRow
+                    Layout.fillWidth: true
+                    LottieAnimation {
+                        Layout.preferredHeight: proportionalGridUnit * 2
+                        Layout.maximumWidth: proportionalGridUnit * 3
+                        source: Qt.resolvedUrl(getWeatherImagery(modelData.weathercode))
+                        Layout.alignment: Qt.AlignHCenter
+                        loops: Animation.Infinite
+                        fillMode: Image.PreserveAspectFit
+                        running: true
+                    }
+                    
+                    Item {
+                        Layout.fillWidth: true
+                        Layout.alignment: Qt.AlignHCenter
+                        Layout.preferredHeight: proportionalGridUnit * 1
+                        Mycroft.AutoFitLabel {
+                            font.weight: Font.Bold
+                            anchors.fill: parent
+                            text: modelData.date
+                        }
+                    }
                 }
-                Label {
-                    Layout.alignment: Qt.AlignHLeft
-                    font.capitalization: Font.Capitalize
-                    font.family: "Noto Sans Display"
-                    font.weight: Font.Bold
-                    font.pixelSize: 40
-                    color: "white"
-                    lineHeight: 0.6
-                    text: modelData.date
-                }
-                Label {
-                    Layout.alignment: Qt.AlignHCenter
-                    font.capitalization: Font.AllUppercase
-                    font.family: "Noto Sans Display"
-                    font.weight: Font.Bold
-                    font.pixelSize: 140
-                    color: "white"
-                    lineHeight: 0.6
-                    text: modelData.max + "°"
-                }
-                Label {
-                    Layout.alignment: Qt.AlignHCenter
-                    font.capitalization: Font.AllUppercase
-                    font.family: "Noto Sans Display"
-                    font.styleName: "Thin"
-                    font.pixelSize: 140
-                    color: "white"
-                    lineHeight: 0.6
-                    text: modelData.min + "°"
+                RowLayout{
+                    Layout.fillWidth: true
+                    Mycroft.AutoFitLabel {
+                        font.weight: Font.Bold
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: proportionalGridUnit * 2.5
+                        text: modelData.max + "°"
+                    }
+
+                    Mycroft.AutoFitLabel {
+                        font.weight: Font.Thin
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: proportionalGridUnit * 2.5
+                        text: modelData.min + "°"
+                    }
                 }
             }
         }

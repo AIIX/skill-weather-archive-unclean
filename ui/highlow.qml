@@ -6,17 +6,18 @@ import org.kde.kirigami 2.4 as Kirigami
 import Mycroft 1.0 as Mycroft
 import org.kde.lottie 1.0
 
-Mycroft.Delegate {
-    id: root
+WeatherDelegate {
+    id: highlowRoot
 
     ColumnLayout {
         id: grid
         Layout.fillWidth: true
-        anchors.centerIn: parent
         spacing: 0
 
         Mycroft.AutoFitLabel {
             id: maxTemp
+            Layout.fillWidth: true
+            Layout.preferredHeight: proportionalGridUnit * 3
             font.weight: Font.Bold
             text: sessionData.max + "°"
         }
@@ -25,6 +26,8 @@ Mycroft.Delegate {
         }
         Mycroft.AutoFitLabel {
             id: minTemp
+            Layout.fillWidth: true
+            Layout.preferredHeight: proportionalGridUnit * 3
             font.styleName: "Thin"
             text: sessionData.min + "°"
         }
