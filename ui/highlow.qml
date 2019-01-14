@@ -7,29 +7,21 @@ import Mycroft 1.0 as Mycroft
 import org.kde.lottie 1.0
 
 WeatherDelegate {
-    id: highlowRoot
+    id: root
 
-    ColumnLayout {
-        id: grid
+    Mycroft.AutoFitLabel {
+        id: maxTemp
+        font.weight: Font.Bold
         Layout.fillWidth: true
-        spacing: 0
+        Layout.preferredHeight: proportionalGridUnit * 4
+        text: sessionData.max + "°"
+    }
 
-        Mycroft.AutoFitLabel {
-            id: maxTemp
-            Layout.fillWidth: true
-            Layout.preferredHeight: proportionalGridUnit * 3
-            font.weight: Font.Bold
-            text: sessionData.max + "°"
-        }
-        Item {
-            height: Kirigami.Units.largeSpacing * 10
-        }
-        Mycroft.AutoFitLabel {
-            id: minTemp
-            Layout.fillWidth: true
-            Layout.preferredHeight: proportionalGridUnit * 3
-            font.styleName: "Thin"
-            text: sessionData.min + "°"
-        }
+    Mycroft.AutoFitLabel {
+        id: minTemp
+        Layout.fillWidth: true
+        Layout.preferredHeight: proportionalGridUnit * 4
+        font.styleName: "Thin"
+        text: sessionData.min + "°"
     }
 }
